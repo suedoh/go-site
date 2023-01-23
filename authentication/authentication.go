@@ -31,8 +31,8 @@ const (
 // hardcoded password for now while getting off the ground
 // TODO: use env variable for password
 var (
-    signingKey, _ = jwt.ParseRSAPrivateKeyFromPEM(privKey)
-    verifyKey, _ = jwt.ParseRSAPublicKeyFromPEM(pubKey)
+    signingKey, _ = jwt.ParseRSAPrivateKeyFromPEM([]byte(privKeyPath))
+    verifyKey, _ = jwt.ParseRSAPublicKeyFromPEM([]byte(pubKeyPath))
     users = map[string]User{
         "testuser": {
             Username: "testuser",
