@@ -28,6 +28,8 @@ const (
     pubKeyPath  = "app.rsa.pub"
 )
 
+// hardcoded password for now while getting off the ground
+// TODO: use env variable for password
 var (
     signingKey, _ = jwt.ParseRSAPrivateKeyFromPEM(privKey)
     verifyKey, _ = jwt.ParseRSAPublicKeyFromPEM(pubKey)
@@ -39,6 +41,7 @@ var (
     }
 )
 
+// Login handles the login process
 // Login handles the login process
 func Login(w http.ResponseWriter, r *http.Request) (bool, error) {
     if r.Method == http.MethodPost {
@@ -83,6 +86,8 @@ func Login(w http.ResponseWriter, r *http.Request) (bool, error) {
             Name:    "jwt",
             Value:   tokenString,
             Expires: time.Now().Add(time.Hour * 24),
+            HttpOnly: true,
+            Secure: true,
         })
         return true, nil
     }
