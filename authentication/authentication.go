@@ -3,7 +3,7 @@ package authentication
 import (
 	"net/http"
 
-	"github.com/suedoh/go-site/auth"
+	"github.com/suedoh/go-site/authentication/auth"
 )
 
 // LoginHandler handles the login route
