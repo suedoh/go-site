@@ -1,0 +1,14 @@
+{
+    "onion": {
+        "host": "myonionhost.onion",
+        "private_key": "path/to/private_key.key"
+    },
+    "log": {
+        "level": "debug"
+    },
+    "authentication": {
+        "jwt_secret": "mysecretkey",
+        "csrf_secret": "mycsrfsecret"
+    }
+}
+
