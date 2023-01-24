@@ -1,0 +1,34 @@
+{
+    "apps": {
+        "http": {
+            "servers": {
+                "onion": {
+                    "listen": [":80"],
+                    "routes": [
+                        {
+                            "handle": [
+                                {
+                                    "handler": "reverse_proxy",
+                                    "upstreams": [
+                                        {
+                                            "dial": "127.0.0.1:8080"
+                                        }
+                                    ]
+                                }
+                            ],
+                            "match": [
+                                {
+                                    "path": "/"
+                                }
+                            ]
+                        }
+                    ],
+                    "onion": {
+                        "private_key": "/path/to/private_key.key",
+                        "hidden_service_dir": "/path/to/hidden_service_dir"
+                    }
+                }
+            }
+        }
+    }
+}
