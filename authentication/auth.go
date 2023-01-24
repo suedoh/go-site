@@ -1,4 +1,4 @@
-package auth
+package authentication
 
 import (
     "net/http"
@@ -7,11 +7,6 @@ import (
     "github.com/gorilla/csrf"
 )
 
-// User represents a user with a username and password
-type User struct {
-    Username string
-    Password string
-}
 
 // Auth represents the state of a user's authentication
 type Auth struct {
