@@ -1,85 +1,125 @@
 package authentication
 
 import (
-    "net/http"
-    "time"
+	"encoding/json"
+	"net/http"
+	"time"
 
-    "github.com/gorilla/csrf"
+	"github.com/dgrijalva/jwt-go"
 )
 
+// Config holds the configuration for the JWT
+type Config struct {
+	SecretKey  []byte
+	Expiration time.Duration
+}
 
-// Auth represents the state of a user's authentication
+// Auth is the struct for the auth middleware
 type Auth struct {
-    Authenticated bool
-    User          User
-    CSRFToken     string
+	cfg    *Config
+	secret []byte
 }
 
-// LoginHandler handles a login request
-func LoginHandler(w http.ResponseWriter, r *http.Request) {
-    // Get the user from the database
-    user := getUser(r.FormValue("username"), r.FormValue("password"))
-    if user.Username == "" {
-        http.Error(w, "Invalid username or password", http.StatusUnauthorized)
-        return
-    }
+// AuthMiddleware is the middleware for handling auth
+func (a *Auth) AuthMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "OPTIONS" {
+			next.ServeHTTP(w, r)
+			return
+		}
 
-    // Create a new JWT token
-    token := jwt.New(jwt.SigningMethodHS256)
+		tokenString := r.Header.Get("Authorization")
+		if tokenString == "" {
+			http.Error(w, "Token is missing", http.StatusBadRequest)
+			return
+		}
 
-    // Set claims
-    claims := token.Claims.(jwt.MapClaims)
-    claims["username"] = user.Username
-    claims["exp"] = time.Now().Add(time.Hour * 72).Unix()
+		claims, err := ValidateJWT(tokenString, a.cfg.SecretKey)
+		if err != nil {
+			http.Error(w, "Token is invalid", http.StatusBadRequest)
+			return
+		}
 
-    // Generate encoded token and send it as response.
-    t, err := token.SignedString([]byte("secret"))
-    if err != nil {
-        http.Error(w, err.Error(), http.StatusInternalServerError)
-        return
-    }
-
-    // Create a new authentication state
-    auth := Auth{
-        Authenticated: true,
-        User:          user,
-        CSRFToken:     csrf.Token(r),
-    }
-
-    // Store the authentication state in a cookie
-    http.SetCookie(w, &http.Cookie{
-        Name:     "auth",
-        Value:    t,
-        HttpOnly: true,
-    })
-
-    // Render the authenticated template
-    renderTemplate(w, "authenticated", auth)
+		ctx := r.Context()
+		ctx = context.WithValue(ctx, "username", claims.Username)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
 
-// LogoutHandler handles a logout request
-func LogoutHandler(w http.ResponseWriter, r *http.Request) {
-    // Delete the auth cookie
-    http.SetCookie(w, &http.Cookie{
-        Name:     "auth",
-        MaxAge:   -1,
-        HttpOnly: true,
-    })
+// Login handles the login of a user
+func (a *Auth) Login(w http.ResponseWriter, r *http.Request) {
+	// Parse the request body to get the user login credentials
+	var user User
+	err := json.NewDecoder(r.Body).Decode(&user)
+	if err != nil {
+		http.Error(w, "Invalid request payload", http.StatusBadRequest)
+		return
+	}
 
-    // Redirect the user to the login page
-    http.Redirect(w, r, "/login", http.StatusSeeOther)
+	// Check if the provided username and password match the hardcoded values
+	if user.Username != "test" || user.Password != "password" {
+		http.Error(w, "Invalid username or password", http.StatusUnauthorized)
+		return
+	}
+
+	// Create a new JWT token and set it as the HTTP only session cookie
+	expirationTime := time.Now().Add(24 * time.Hour)
+	claims := &Claims{
+		Username: user.Username,
+		StandardClaims: jwt.StandardClaims{
+			ExpiresAt: expirationTime.Unix(),
+		},
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString([]byte(a.secret))
+	if err != nil {
+		http.Error(w, "Failed to generate token", http.StatusInternalServerError)
+		return
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:    "session_token",
+		Value:   tokenString,
+		Expires: expirationTime,
+		HttpOnly: true,
+	})
+	json.NewEncoder(w).Encode(map[string]string{"message": "Successfully logged in"})
 }
 
-// ValidateJWT validates a JWT token
-func ValidateJWT(tokenString string) (*Claims, error) {
-    token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
-        return []byte(os.Getenv("JWT_SECRET")), nil
-    })
+func (a *Auth) Logout(w http.ResponseWriter, r *http.Request) {
+	http.SetCookie(w, &http.Cookie{
+		Name:    "session_token",
+		Value:   "",
+		Expires: time.Now(),
+		HttpOnly: true,
+	})
+	json.NewEncoder(w).Encode(map[string]string{"message": "Successfully logged out"})
+}
 
-    if claims, ok := token.Claims.(*Claims); ok && token.Valid {
-        return claims, nil
-    } else {
-        return nil, err
-    }
+func (a *Auth) ValidateJWT(token string) error {
+	// Parse the token
+	claims := &Claims{}
+	tkn, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (interface{}, error) {
+		return a.SigningKey, nil
+	})
+	if err != nil {
+		if err == jwt.ErrSignatureInvalid {
+			return err
+		}
+		return err
+	}
+	if !tkn.Valid {
+		return errors.New("Invalid token")
+	}
+	return nil
+}
+
+// RefreshHandler refreshes the JWT token
+func (a *Auth) RefreshHandler(w http.ResponseWriter, r *http.Request) {
+	// TODO
+}
+
+// LogoutHandler expires the JWT token
+func (a *Auth) LogoutHandler(w http.ResponseWriter, r *http.Request) {
+	// TODO
 }
 
